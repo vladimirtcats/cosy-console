@@ -1,0 +1,16 @@
+// Paste this block into a console session (or pipe it: see README).
+// Prints status and total of every order for users 1, 2, 3.
+ids := []int64{1, 2, 3}
+ordersOf := func(userID int64) {
+	list, _, err := App.Orders.Repos.OrderRepo.ListByUser(Ctx, userID, orders.OrderFilter{})
+	if err != nil {
+		fmt.Println(userID, "->", err)
+		return
+	}
+	for _, o := range list {
+		fmt.Println(userID, o.ID, o.Status, o.TotalCents)
+	}
+}
+for _, id := range ids {
+	ordersOf(id)
+}

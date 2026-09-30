@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cosy_console
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cosy_console"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=postgres://postgres:postgres@postgres:5432/cosy_console?sslmode=disable
+      - up
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    image: postgres:17
+    volumes:
+      - ./db/seeds:/seeds:ro
+    command: sh -c 'psql "$$DATABASE_URL" -f /seeds/seed.sql'
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/cosy_console?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+    ports:
+      - "8080:8080"
+    environment:
+      APP_PORT: "8080"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/cosy_console?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
+volumes:
+  go-mod-cache:
